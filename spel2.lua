@@ -16,7 +16,7 @@ state = nil
 game_manager = nil
 ---@type Online
 online = nil
----@type Player[]
+---@type (Player|nil)[]
 players = nil
 ---@type SaveData
 savegame = nil
@@ -1210,7 +1210,7 @@ function set_ending_unlock(type) end
 ---@return StateMemory
 function get_local_state() end
 ---Get the thread-local version of players
----@return Player[]
+---@return (Player | nil)[]
 function get_local_players() end
 ---List files in directory relative to the script root. Returns table of file/directory names or nil if not found.
 ---@param dir string?
@@ -2030,7 +2030,7 @@ do
     ---@field leader integer @Index of leader player in coop
     ---@field player_select SelectPlayerSlot[] @size: MAX_PLAYERS
     ---@field player_inventory Inventory[] @size: MAX_PLAYERS
-    ---@field players Player[] @size: MAX_PLAYERS @Table of players, also keeps the dead body until they are destroyed (necromancer revive also destroys the old body)
+    ---@field players (Player|nil)[] @size: MAX_PLAYERS @Table of players, also keeps the dead body until they are destroyed (necromancer revive also destroys the old body)
 
 ---@class LiquidPhysicsEngine
     ---@field pause boolean

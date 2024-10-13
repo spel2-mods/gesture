@@ -301,8 +301,43 @@ set_callback(function(ctx)
     local frame = get_frame()
     local players = get_players()
 
+    ---@param text string
+    ---@param x number
+    ---@param y number
+    ---@param scale number
+    ---@param color Color
     local function draw_text(text, x, y, scale, color)
         ctx:draw_text(text, x, y, scale, scale, color, CENTER, FONT)
+    end
+
+    local function draw_text_size(text, scale)
+        return ctx:draw_text_size(text, scale, scale, FONT)
+    end
+
+    ---@param text string
+    ---@param x number
+    ---@param y number
+    ---@param scale number
+    ---@param color Color
+    function draw_floating_text(text, x, y, scale, color)
+        local w, h = draw_text_size(scale, text)
+        
+        if ex+w/2>0.98 then
+            ey=ey/ex*(0.98-w/2)
+            ex=0.98-w/2
+        elseif ex-w/2<-0.98 then
+            ey=ey/ex*(-0.98+w/2)
+            ex=-0.98+w/2
+        end
+        if ey-h/2>0.98 then
+            ex=ex/ey*(0.98+h/2)
+            ey=0.98+h/2
+        elseif ey+h/2<-0.98 then
+            ex=ex/ey*(-0.98-h/2)
+            ey=-0.98-h/2
+        end
+
+        draw_text(text, x, y, scale, color)
     end
 
     local player_colors = get_storage().player_colors
@@ -311,6 +346,31 @@ set_callback(function(ctx)
         local gstate = data.player_ges_states[slot]
         local ges_input_state = gstate.ges_input_state
         local color = player_colors[slot]
+
+        local get_player_render_position = (function()
+            local x, y, l = nil, nil, nil
+            local cached = false
+
+            return function()
+                if not cached then
+                    ---@type Player | PlayerGhost | nil
+                    local player = players[slot]
+                    if player == nil or player.health == 0 then
+                        player = get_playerghost(slot)
+                    end
+                    
+                    if player == nil then
+                        cached = true
+                        return nil, nil
+                    end
+
+                    x, y, l = get_render_position(player.uid)
+
+                    cached = true
+                end
+                return x, y, l
+            end
+        end)()
 
         ---#region GESTURE SELECT UI
         if ges_input_state.x ~= 0 and (slot == online_data.local_player_slot or online_data.play_type == PLAY_TYPE.LOCAL) then
@@ -325,11 +385,11 @@ set_callback(function(ctx)
             end
 
             if online_data.play_type == PLAY_TYPE.LOCAL then
-                local player = players[slot]
-                if player then
-                    local hitbox = get_render_hitbox(player.uid)
-                    local sx, sy = screen_position((hitbox.left + hitbox.right) / 2, (hitbox.top + hitbox.bottom) / 2)
-                    fx, fy = sx, sy
+                local rx, ry = get_player_render_position()
+
+                if rx ~= nil then
+                    ---@cast ry number
+                    fx, fy = screen_position(rx, ry)
                 end
             end
 
@@ -368,26 +428,6 @@ set_callback(function(ctx)
         ---#endregion
         
         ---#region DISPLAY GESTURE
-        function draw_floating_text(uid,text,scale,color)
-            local x, y, _ = get_render_position(uid)
-            local w, h = draw_text_size(text,scale)
-            y = y + 0.1
-            if ex+w/2>0.98 then
-                ey=ey/ex*(0.98-w/2)
-                ex=0.98-w/2
-            elseif ex-w/2<-0.98 then
-                ey=ey/ex*(-0.98+w/2)
-                ex=-0.98+w/2
-            end
-            if ey-h/2>0.98 then
-                ex=ex/ey*(0.98+h/2)
-                ey=0.98+h/2
-            elseif ey+h/2<-0.98 then
-                ex=ex/ey*(-0.98-h/2)
-                ey=-0.98-h/2
-            end
-            draw_text(text,x,y,scale,color)
-        end
         
         local gesture = gstate.cur_ges.gesture
         local elapsed = frame - gstate.cur_ges.frame_begin
@@ -418,18 +458,14 @@ set_callback(function(ctx)
 
         --- displays over player's head
         if state.screen ~= SCREEN.TRANSITION then
-            ---@type Player | PlayerGhost | nil
-            local player = players[slot]
+            local rx, ry = get_player_render_position()
 
-            if player == nil or player.health == 0 then
-                player = get_playerghost(slot)
-            end
-
-            if player == nil then
+            if rx == nil then
                 goto continue
             end
 
-            draw_floating_text(player.uid,text,font_scale * 1.5, fadeout_color)
+            ---@cast ry number
+            draw_floating_text(text, rx, ry + 0.1, font_scale * 1.5, fadeout_color)
         end
         ::continue::
         ---#endregion

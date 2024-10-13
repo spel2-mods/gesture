@@ -326,8 +326,9 @@ set_callback(function(ctx)
     ---@param y number
     ---@param scale number
     ---@param color Color
-    function draw_floating_text(text, x, y, scale, color)
-        local w, h = draw_text_size(scale, text)
+
+    function draw_floating_text(text, ex, ey, scale, color)
+        local w, h = draw_text_size(text,scale)
         
         if ex+w/2>0.98 then
             ey=ey/ex*(0.98-w/2)
@@ -343,8 +344,8 @@ set_callback(function(ctx)
             ex=ex/ey*(-0.98-h/2)
             ey=-0.98-h/2
         end
+        draw_text(text, ex, ey, scale, color)
 
-        draw_text(text, x, y, scale, color)
     end
 
     local player_colors = get_storage().player_colors
@@ -370,9 +371,7 @@ set_callback(function(ctx)
                         cached = true
                         return nil, nil
                     end
-
                     x, y, l = get_render_position(player.uid)
-
                     cached = true
                 end
                 return x, y, l
@@ -460,8 +459,8 @@ set_callback(function(ctx)
 
         --- displays over player's head
         if state.screen ~= SCREEN.TRANSITION then
-            local rx, ry = get_player_render_position()
-
+            local rx, ry, _ = get_player_render_position()
+            rx,ry = screen_position(rx,ry)
             if rx == nil then
                 goto continue
             end

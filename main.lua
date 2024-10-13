@@ -37,7 +37,7 @@ require("util.set_option_saveload")()
 ---@field y integer
 
 ---@return GestureInputState
-function initial_gesture_input_state()
+local function initial_gesture_input_state()
     return {
         prev_buttons = 0,
         door_frame_begin = -1,
@@ -52,7 +52,7 @@ end
 ---@field ges_input_state GestureInputState
 
 ---@return PlayerGestureState
-function initial_player_gesture_state()
+local function initial_player_gesture_state()
     return {
         cur_ges = {
             gesture = GESTURE.NONE,
@@ -79,7 +79,7 @@ _storage = {
         return Color:new(127, 127, 127, 1)
     end)
 }
-function get_storage()
+local function get_storage()
     return _storage
 end
 
@@ -123,7 +123,7 @@ end, ON.POST_LEVEL_GENERATION)
 ---@param frame integer
 ---@param input_slot PlayerSlot
 ---@param gstate PlayerGestureState
-function process_player_input(frame, input_slot, gstate)
+local function process_player_input(frame, input_slot, gstate)
     local ges_input_state = gstate.ges_input_state
     local prev_buttons = ges_input_state.prev_buttons
     local buttons = input_slot.buttons_gameplay
@@ -131,7 +131,7 @@ function process_player_input(frame, input_slot, gstate)
     local prev_door_pressed = test_mask(prev_buttons, INPUTS.DOOR)
 
     ---@param input INPUTS
-    function pressed(input)
+    local function pressed(input)
         return test_mask(buttons, input) and not test_mask(prev_buttons, input)
     end
 
@@ -283,7 +283,7 @@ FADEOUT_TIMER_AT = 30
 ---@param color Color
 ---@param timer integer
 ---@return Color
-function fadeout_direction_color(color, timer)
+local function fadeout_direction_color(color, timer)
     color = Color:new(color)
     if timer < FADEOUT_TIMER_AT then
         color.a = color.a * ((timer*timer) / (FADEOUT_TIMER_AT * FADEOUT_TIMER_AT))
@@ -301,12 +301,7 @@ set_callback(function(ctx)
     local frame = get_frame()
     local players = get_players()
 
-    function draw_text(text, x, y, scale, color)
-        ctx:draw_text(text, x, y, scale, scale, color, CENTER, FONT)
-    end
-
-    function draw_text_with_shadow(text, x, y, scale, color)
-        ctx:draw_text(text, x, y, scale * 1.1, scale * 1.1, Color:new(0, 0, 0, 255), CENTER, FONT)
+    local function draw_text(text, x, y, scale, color)
         ctx:draw_text(text, x, y, scale, scale, color, CENTER, FONT)
     end
 

@@ -76,7 +76,7 @@ get_sync_storage = require("playlunky.get_sync_storage")(initial_sync_storage)
 
 _storage = {
     player_colors = array_fillwith(MAX_PLAYERS, function ()
-        return Color.new(127, 127, 127, 1)
+        return Color:new(127, 127, 127, 1)
     end)
 }
 function get_storage()
@@ -100,7 +100,7 @@ set_callback(function()
     --- initialize color of player's heart
     if not options.use_heart_color then
         get_storage().player_colors = array_fillwith(MAX_PLAYERS, function ()
-            return Color.new(127, 127, 127, 1)
+            return Color:new(127, 127, 127, 1)
         end)
         return
     end
@@ -121,10 +121,9 @@ set_callback(function()
 end, ON.POST_LEVEL_GENERATION)
 
 ---@param frame integer
----@param slot integer
 ---@param input_slot PlayerSlot
 ---@param gstate PlayerGestureState
-function process_player_input(frame, slot, input_slot, gstate)
+function process_player_input(frame, input_slot, gstate)
     local ges_input_state = gstate.ges_input_state
     local prev_buttons = ges_input_state.prev_buttons
     local buttons = input_slot.buttons_gameplay
@@ -134,18 +133,6 @@ function process_player_input(frame, slot, input_slot, gstate)
     ---@param input INPUTS
     function pressed(input)
         return test_mask(buttons, input) and not test_mask(prev_buttons, input)
-    end
-
-    ---@param input INPUTS
-    ---@param frame integer
-    function updown_pressed(input, frame)
-        return pressed(input)
-
-        --[[if input == INPUTS.UP then
-            return ges_input_state.reader:pressed(GESTURE_INPUT.UP, frame)
-        else
-            return ges_input_state.reader:pressed(GESTURE_INPUT.DOWN, frame)
-        end]]--
     end
 
     if pressed(INPUTS.DOOR) and (buttons & (INPUTS.LEFT | INPUTS.RIGHT)) == 0 then
@@ -195,13 +182,10 @@ function process_player_input(frame, slot, input_slot, gstate)
                 ges_input_state.y = 0
                 ges_input_state.door_frame_begin = frame + 1
             else
-                --local reader = ges_input_state.reader
-                --reader:read(buttons, frame)
-
                 if ges_input_state.direction == 0 then
-                    if updown_pressed(INPUTS.UP, frame) then
+                    if pressed(INPUTS.UP) then
                         ges_input_state.direction = 1
-                    elseif updown_pressed(INPUTS.DOWN, frame) then
+                    elseif pressed(INPUTS.DOWN) then
                         ges_input_state.direction = -1
                     end
                 end
@@ -215,13 +199,13 @@ function process_player_input(frame, slot, input_slot, gstate)
                         DOWN = INPUTS.UP
                     end
                     
-                    if updown_pressed(UP, frame) then
+                    if pressed(UP) then
                         if ges_input_state.y >= 2 then
                             ges_input_state.y = ges_input_state.y - 1
                         else
                             ges_input_state.x = (ges_input_state.x - 1 + ges_input_state.direction + #GESTURE_SELECT_SPACE) % #GESTURE_SELECT_SPACE + 1
                         end
-                    elseif updown_pressed(DOWN, frame) then
+                    elseif pressed(DOWN) then
                         ges_input_state.y = ges_input_state.y % #GESTURE_SELECT_SPACE[ges_input_state.x] + 1
                     end
                 end
@@ -262,7 +246,7 @@ set_callback(function()
     local state = get_state()
     local frame = get_frame()
     for slot = 1, MAX_PLAYERS do
-        process_player_input(frame, slot, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
+        process_player_input(frame, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
     end
 end, ON.GAMEFRAME)
 
@@ -275,7 +259,7 @@ set_callback(function()
     local state = get_state()
     local frame = get_frame()
     for slot = 1, MAX_PLAYERS do
-        process_player_input(frame, slot, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
+        process_player_input(frame, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
     end
 end, ON.PRE_UPDATE)
 

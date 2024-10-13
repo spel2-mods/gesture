@@ -5,3 +5,12 @@ MODE = {
 }
 
 MAX_PLAYERS = CONST.MAX_PLAYERS
+
+VANILLA_FONT_STYLE = {
+    NORMAL = 0,
+    ITALIC = 1,
+    BOLD = 2,
+
+    BOLD_KO = 12,
+    ITALIC_KO = 13,
+}

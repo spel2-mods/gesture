@@ -293,7 +293,7 @@ end
 
 ---@param ctx VanillaRenderContext
 set_callback(function(ctx)
-    local FONT = VANILLA_FONT_STYLE.ITALIC
+    local FONT = VANILLA_FONT_STYLE.BOLD_KO
     local font_scale = options.font_scale / 10000
     local CENTER = VANILLA_TEXT_ALIGNMENT.CENTER
 

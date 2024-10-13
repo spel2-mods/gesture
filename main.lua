@@ -22,6 +22,14 @@ options_utils.register_option_combo("mode", "Mode", "", "Compatible with Vanilla
 options_utils.register_option_bool("play_sound", "play sound", "", true)
 options_utils.register_option_bool("use_heart_color", "Use heart color", "", false)
 options_utils.register_option_float("font_scale", "font scale", "", 4, 0, 10000)
+options_utils.register_option_combo("font_style", "font style", "", "bold\0italic\0\0", 1)
+function get_font_style()
+    if options.font_style == 1 then
+        return VANILLA_FONT_STYLE.BOLD_KO
+    else
+        return VANILLA_FONT_STYLE.ITALIC_KO
+    end
+end
 
 require("util.set_option_saveload")()
 
@@ -292,7 +300,7 @@ end
 
 ---@param ctx VanillaRenderContext
 set_callback(function(ctx)
-    local FONT = VANILLA_FONT_STYLE.BOLD_KO
+    local FONT = get_font_style()
     local font_scale = options.font_scale / 10000
     local CENTER = VANILLA_TEXT_ALIGNMENT.CENTER
 

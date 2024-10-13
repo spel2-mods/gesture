@@ -376,14 +376,9 @@ set_callback(function(ctx)
             local BLOCK_HEIGHT = 0.05
             local BLOCK_WIDTH = 0.10
 
-            local state = get_state()
-            local fx, fy = screen_position(state.camera.focus_x, state.camera.focus_y)
-
-            if state.camera.focused_entity_uid == -1 then
-                fx, fy = 0, 0
-            end
-
-            if online_data.play_type == PLAY_TYPE.LOCAL then
+            local fx, fy = 0, 0
+            -- don't draw gesture select ui when player is entering the door
+            if players[slot] == nil or (players[slot].state ~= CHAR_STATE.ENTERING and players[slot].state ~= CHAR_STATE.EXITING) then
                 local rx, ry = get_player_render_position()
 
                 if rx ~= nil then

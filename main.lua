@@ -22,6 +22,14 @@ options_utils.register_option_combo("mode", "Mode", "", "Compatible with Vanilla
 options_utils.register_option_bool("play_sound", "play sound", "", true)
 options_utils.register_option_bool("use_heart_color", "Use heart color", "", false)
 options_utils.register_option_float("font_scale", "font scale", "", 4, 0, 10000)
+options_utils.register_option_combo("font_style", "font style", "", "bold\0italic\0\0", 1)
+function get_font_style()
+    if options.font_style == 1 then
+        return VANILLA_FONT_STYLE.BOLD_KO
+    else
+        return VANILLA_FONT_STYLE.ITALIC_KO
+    end
+end
 
 require("util.set_option_saveload")()
 
@@ -83,19 +91,38 @@ local function get_storage()
     return _storage
 end
 
-set_callback(function()
-    --- remove gesture state on level generation
+---@param cb fun(gesture: GESTURE): boolean
+function remove_gestures_if(cb)
     local data = get_sync_storage()
     for slot = 1, MAX_PLAYERS do
         local gstate = data.player_ges_states[slot]
         local gesture = gstate.cur_ges.gesture
-        if not GESTURE_PRESIST_ON_RESTART[gesture] then
+        if cb(gesture) then
             gstate.cur_ges = {
                 gesture = GESTURE.NONE,
                 frame_begin = -GESTURE_DISPLAY_DURATION_DEFAULT
             }
         end
     end
+end
+
+function initialize_heart_color()
+    local data = get_storage()
+    local players = get_players()
+    for slot = 1, MAX_PLAYERS do
+        local player = players[slot]
+        if player then
+            data.player_colors[slot] = Color:new(get_character_heart_color(player.type.id))
+            data.player_colors[slot].a = 1
+        end
+    end
+end
+
+set_callback(function()
+    --- remove gesture state on level generation
+    remove_gestures_if(function (gesture)
+        return not GESTURE_PRESIST_ON_RESTART[gesture]
+    end)
 
     --- initialize color of player's heart
     if not options.use_heart_color then
@@ -105,18 +132,8 @@ set_callback(function()
         return
     end
 
-    local state = get_state()
-
-    if state.level_count == 0 then
-        local data = get_storage()
-        local players = get_players()
-        for slot = 1, MAX_PLAYERS do
-            local player = players[slot]
-            if player then
-                data.player_colors[slot] = Color:new(get_character_heart_color(player.type.id))
-                data.player_colors[slot].a = 1
-            end
-        end
+    if get_state().level_count == 0 then
+        initialize_heart_color()
     end
 end, ON.POST_LEVEL_GENERATION)
 
@@ -237,45 +254,35 @@ local function process_player_input(frame, input_slot, gstate)
     ges_input_state.prev_buttons = buttons
 end
 
-set_callback(function()
-    if options.mode ~= MODE.COMPAT_WITH_VANILA then
-        return
-    end
-
+function process_players_input()
     local data = get_sync_storage()
     local state = get_state()
     local frame = get_frame()
     for slot = 1, MAX_PLAYERS do
         process_player_input(frame, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
     end
+end
+
+set_callback(function()
+    if options.mode ~= MODE.COMPAT_WITH_VANILA then
+        return
+    end
+
+    process_players_input()
 end, ON.GAMEFRAME)
 
 set_callback(function()
     if options.mode ~= MODE.NATURAL_CONTROL then
         return
     end
-    
-    local data = get_sync_storage()
-    local state = get_state()
-    local frame = get_frame()
-    for slot = 1, MAX_PLAYERS do
-        process_player_input(frame, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
-    end
+
+    process_players_input()
 end, ON.PRE_UPDATE)
 
 set_callback(function()
-    local data = get_sync_storage()
-
-    for slot = 1, MAX_PLAYERS do
-        local gstate = data.player_ges_states[slot]
-        local gesture = gstate.cur_ges.gesture
-        if not GESTURE_PERSIST_ON_TRANSITION[gesture] then
-            gstate.cur_ges = {
-                gesture = GESTURE.NONE,
-                frame_begin = -GESTURE_DISPLAY_DURATION_DEFAULT
-            }
-        end
-    end
+    remove_gestures_if(function (gesture)
+        return not GESTURE_PERSIST_ON_TRANSITION[gesture]
+    end)
 end, ON.TRANSITION)
 
 FADEOUT_TIMER_AT = 30
@@ -293,7 +300,7 @@ end
 
 ---@param ctx VanillaRenderContext
 set_callback(function(ctx)
-    local FONT = VANILLA_FONT_STYLE.ITALIC
+    local FONT = get_font_style()
     local font_scale = options.font_scale / 10000
     local CENTER = VANILLA_TEXT_ALIGNMENT.CENTER
 
@@ -301,8 +308,43 @@ set_callback(function(ctx)
     local frame = get_frame()
     local players = get_players()
 
+    ---@param text string
+    ---@param x number
+    ---@param y number
+    ---@param scale number
+    ---@param color Color
     local function draw_text(text, x, y, scale, color)
         ctx:draw_text(text, x, y, scale, scale, color, CENTER, FONT)
+    end
+
+    local function draw_text_size(text, scale)
+        return ctx:draw_text_size(text, scale, scale, FONT)
+    end
+
+    ---@param text string
+    ---@param x number
+    ---@param y number
+    ---@param scale number
+    ---@param color Color
+    function draw_floating_text(text, ex, ey, scale, color)
+        local w, h = draw_text_size(text,scale)
+        
+        if ex+w/2>0.98 then
+            ey=ey/ex*(0.98-w/2)
+            ex=0.98-w/2
+        elseif ex-w/2<-0.98 then
+            ey=ey/ex*(-0.98+w/2)
+            ex=-0.98+w/2
+        end
+        if ey-h/2>0.98 then
+            ex=ex/ey*(0.98+h/2)
+            ey=0.98+h/2
+        elseif ey+h/2<-0.98 then
+            ex=ex/ey*(-0.98-h/2)
+            ey=-0.98-h/2
+        end
+        draw_text(text, ex, ey, scale, color)
+        
     end
 
     local player_colors = get_storage().player_colors
@@ -312,24 +354,43 @@ set_callback(function(ctx)
         local ges_input_state = gstate.ges_input_state
         local color = player_colors[slot]
 
+        local get_player_render_position = (function()
+            local x, y, l = nil, nil, nil
+            local cached = false
+
+            return function()
+                if not cached then
+                    ---@type Player | PlayerGhost | nil
+                    local player = players[slot]
+                    if player == nil or player.health == 0 then
+                        player = get_playerghost(slot)
+                    end
+                    
+                    if player == nil then
+                        cached = true
+                        return nil, nil
+                    end
+                    
+                    x, y, l = get_render_position(player.uid)
+                    cached = true
+                end
+                return x, y, l
+            end
+        end)()
+
         ---#region GESTURE SELECT UI
         if ges_input_state.x ~= 0 and (slot == online_data.local_player_slot or online_data.play_type == PLAY_TYPE.LOCAL) then
             local BLOCK_HEIGHT = 0.05
             local BLOCK_WIDTH = 0.10
 
-            local state = get_state()
-            local fx, fy = screen_position(state.camera.focus_x, state.camera.focus_y)
+            local fx, fy = 0, 0
+            -- don't draw gesture select ui when player is entering the door
+            if players[slot] == nil or (players[slot].state ~= CHAR_STATE.ENTERING and players[slot].state ~= CHAR_STATE.EXITING) then
+                local rx, ry = get_player_render_position()
 
-            if state.camera.focused_entity_uid == -1 then
-                fx, fy = 0, 0
-            end
-
-            if online_data.play_type == PLAY_TYPE.LOCAL then
-                local player = players[slot]
-                if player then
-                    local hitbox = get_render_hitbox(player.uid)
-                    local sx, sy = screen_position((hitbox.left + hitbox.right) / 2, (hitbox.top + hitbox.bottom) / 2)
-                    fx, fy = sx, sy
+                if rx ~= nil then
+                    ---@cast ry number
+                    fx, fy = screen_position(rx, ry)
                 end
             end
 
@@ -368,26 +429,6 @@ set_callback(function(ctx)
         ---#endregion
         
         ---#region DISPLAY GESTURE
-        function draw_floating_text(uid,text,scale,color)
-            local x, y, _ = get_render_position(uid)
-            local w, h = draw_text_size(text,scale)
-            y = y + 0.1
-            if ex+w/2>0.98 then
-                ey=ey/ex*(0.98-w/2)
-                ex=0.98-w/2
-            elseif ex-w/2<-0.98 then
-                ey=ey/ex*(-0.98+w/2)
-                ex=-0.98+w/2
-            end
-            if ey-h/2>0.98 then
-                ex=ex/ey*(0.98+h/2)
-                ey=0.98+h/2
-            elseif ey+h/2<-0.98 then
-                ex=ex/ey*(-0.98-h/2)
-                ey=-0.98-h/2
-            end
-            draw_text(text,x,y,scale,color)
-        end
         
         local gesture = gstate.cur_ges.gesture
         local elapsed = frame - gstate.cur_ges.frame_begin
@@ -418,18 +459,14 @@ set_callback(function(ctx)
 
         --- displays over player's head
         if state.screen ~= SCREEN.TRANSITION then
-            ---@type Player | PlayerGhost | nil
-            local player = players[slot]
-
-            if player == nil or player.health == 0 then
-                player = get_playerghost(slot)
-            end
-
-            if player == nil then
+            local rx, ry, _ = get_player_render_position()
+            rx,ry = screen_position(rx,ry)
+            if rx == nil then
                 goto continue
             end
 
-            draw_floating_text(player.uid,text,font_scale * 1.5, fadeout_color)
+            ---@cast ry number
+            draw_floating_text(text, rx, ry + 0.1, font_scale * 1.5, fadeout_color)
         end
         ::continue::
         ---#endregion

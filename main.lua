@@ -326,6 +326,7 @@ set_callback(function(ctx)
     ---@param y number
     ---@param scale number
     ---@param color Color
+
     function draw_floating_text(text, ex, ey, scale, color)
         local w, h = draw_text_size(text,scale)
         
@@ -344,7 +345,7 @@ set_callback(function(ctx)
             ey=-0.98-h/2
         end
         draw_text(text, ex, ey, scale, color)
-        
+
     end
 
     local player_colors = get_storage().player_colors
@@ -370,7 +371,6 @@ set_callback(function(ctx)
                         cached = true
                         return nil, nil
                     end
-                    
                     x, y, l = get_render_position(player.uid)
                     cached = true
                 end

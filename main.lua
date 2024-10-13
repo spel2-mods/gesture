@@ -1,7 +1,7 @@
 meta = {
-	name = "test: send random data using journal key",
+	name = "gesture",
 	version = "0.1",
-	description = "gesture -> send data -> emotion",
+	description = "gesture visualizer",
 	author = "fienestar",
     online_safe = true
 }
@@ -17,33 +17,194 @@ function array(n, v)
     return t
 end
 
-local EMOTION_FRAME_DURATION = 6
---- 101 000 ~ 101 110
---- reserve 101 111 for future use
-local EMOTION_UI_DURATION = 6
-local EMOTION_COOLDOWN_DURATION = EMOTION_FRAME_DURATION * 2 - 1
+GESTURE_DISPLAY_FRAMES = 10
+
+---@alias GESTURE_INPUT integer
+NONE = 0
+UP = 1
+DOWN = 2
+ATTACK = 3
+
+GESTURES = {
+    NONE = -1,
+
+    -- UP + DOWN + ..
+    HELP = 0,
+    WAIT_PLEASE = 1,
+    READY_TO_EXIT = 2,
+    RESTART_GAME = 3,
+
+    -- ATTACK + 
+    I_AM_DEAD = 4,
+    ITEM_LEFT = 5,
+    DROP_ITEM = 6,
+    AFK = 7,
+
+    -- DOWN + UP + ..
+    OH_NO = 8,
+    YAY = 9,
+    CHEER_UP = 10,
+    SORRY = 11,
+}
+
+---@param gesture integer
+function stringify_gesture(gesture)
+    if gesture == GESTURES.NONE then
+        return "NONE"
+    elseif gesture == GESTURES.HELP then
+        return "HELP"
+    elseif gesture == GESTURES.WAIT_PLEASE then
+        return "WAIT_PLEASE"
+    elseif gesture == GESTURES.READY_TO_EXIT then
+        return "READY_TO_EXIT"
+    elseif gesture == GESTURES.RESTART_GAME then
+        return "RESTART_GAME"
+    elseif gesture == GESTURES.I_AM_DEAD then
+        return "I_AM_DEAD"
+    elseif gesture == GESTURES.ITEM_LEFT then
+        return "ITEM_LEFT"
+    elseif gesture == GESTURES.DROP_ITEM then
+        return "DROP_ITEM"
+    elseif gesture == GESTURES.AFK then
+        return "AFK"
+    elseif gesture == GESTURES.OH_NO then
+        return "OH_NO"
+    elseif gesture == GESTURES.YAY then
+        return "YAY"
+    elseif gesture == GESTURES.CHEER_UP then
+        return "CHEER_UP"
+    elseif gesture == GESTURES.SORRY then
+        return "SORRY"
+    end
+    return "INVALID"
+end
+
+
+
+GESTURE_BUFFER_LENGTH = 10
+GESTURE_TIMEOUT_FRAMES = 90
+GESTURE_INPUT_KEEP_FRAMES = 3
+
+GESTURE_DECISION_TREE = {
+    NO_HINT = 1,
+    [UP] = {
+        NO_HINT = 1,
+        [DOWN] = {
+            [UP] = {
+                [UP] = GESTURES.HELP,
+                [DOWN] = GESTURES.WAIT_PLEASE
+            },
+            [DOWN] = {
+                [UP] = GESTURES.READY_TO_EXIT,
+                [DOWN] = GESTURES.RESTART_GAME
+            }
+        }
+    },
+
+    [ATTACK] = {
+        NO_HINT = 1,
+        [DOWN] = {
+            [UP] = {
+                [UP] = GESTURES.HELP,
+                [DOWN] = GESTURES.WAIT_PLEASE
+            },
+            [DOWN] = {
+                [UP] = GESTURES.READY_TO_EXIT,
+                [DOWN] = GESTURES.RESTART_GAME
+            }
+        }
+    },
+
+    [DOWN] = {
+        NO_HINT = 1,
+        [UP] = {
+            [UP] = {
+                [UP] = GESTURES.OH_NO,
+                [DOWN] = GESTURES.YAY
+            },
+            [DOWN] = {
+                [UP] = GESTURES.CHEER_UP,
+                [DOWN] = GESTURES.SORRY
+            }
+        }
+    }
+}
+
+---@param inputs table<integer, integer>
+---@param input_frame_count integer
+---@return integer | table | nil
+function get_gesture_node(inputs, input_frame_count)
+    local cur = GESTURE_DECISION_TREE
+    local last = #inputs
+    
+    if input_frame_count < GESTURE_INPUT_KEEP_FRAMES then
+        last = last - 1
+    end
+
+    for i = 1, last do
+        local input = inputs[i]
+        if input == NONE then
+            goto continue
+        end
+
+        cur = cur[input]
+        if cur == nil then
+            return nil
+        end
+
+        if type(cur) == "number" then
+            return cur
+        end
+
+        ::continue::
+    end
+
+    return cur
+end
+
+---@class GestureInputState
+---@field inputs table<integer, integer>
+---@field index integer
+---@field frame_count integer
+---@field is_end boolean
+
+function initial_gesture_input_state()
+    return {
+        inputs = array(GESTURE_BUFFER_LENGTH, NONE),
+        index = 0,
+        frame_count = 0,
+        is_end = false
+    }
+end
+
+---@class Gesture
+---@field gesture_id integer
+---@field frame_begin integer
+
+---@class PlayerGestureState
+---@field current_gesture Gesture
+---@field gesture_input_state GestureInputState
+
+---@return PlayerGestureState
+function initial_player_gesture_state()
+    return {
+        current_gesture = {
+            gesture_id = GESTURES.NONE,
+            frame_begin = -GESTURE_DISPLAY_FRAMES
+        },
+        gesture_input_state = initial_gesture_input_state()
+    }
+end
 
 ---@class SyncStorage
----@field player_input table
----@field player_emotion table
----@field write_frame_begin integer
+---@field player_gesture_states table<integer, PlayerGestureState>
+---@field local_player_slot integer
 
 ---@return SyncStorage
 function initial_sync_storage()
     return {
-        player_input = {
-            [1] = array(EMOTION_FRAME_DURATION, INPUTS.NONE),
-            [2] = array(EMOTION_FRAME_DURATION, INPUTS.NONE),
-            [3] = array(EMOTION_FRAME_DURATION, INPUTS.NONE),
-            [4] = array(EMOTION_FRAME_DURATION, INPUTS.NONE)
-        },
-        player_emotion = {
-            [1] = { 0, -EMOTION_UI_DURATION },
-            [2] = { 0, -EMOTION_UI_DURATION },
-            [3] = { 0, -EMOTION_UI_DURATION },
-            [4] = { 0, -EMOTION_UI_DURATION }
-        },
-        write_frame_begin = -EMOTION_FRAME_DURATION,
+        player_gesture_states = array(4, initial_gesture_input_state()),
+        local_player_slot = 1,
     }
 end
 
@@ -97,195 +258,155 @@ end
 
 --#endregion
 
---print("playlunky_version: " .. playlunky_version)
-
-EMOTION_INPUT_STATE = {
-    NONE = 0,
-    PRESS_DOOR_WITHOUT_ARROW_KEY = 1,
-    PRESS_DOOR_WITH_SELECT_KEY = 2
-}
-
-local _storage = {
-    current_emotion = 0,
-    prev_input = INPUTS.NONE,
-    emotion_input_state = EMOTION_INPUT_STATE.NONE,
-    local_player_slot = 1
-}
+local _storage = {}
 function get_storage()
     return _storage
 end
-
---- 101..
-local HEADER_BIT_LENGTH = 3
-local HEADER = 5
-local HEADER_BIT = HEADER << (EMOTION_FRAME_DURATION - HEADER_BIT_LENGTH)
-local CONTENT_BIT_LENGTH = EMOTION_FRAME_DURATION - HEADER_BIT_LENGTH
-local CONTENT_BIT = (1 << CONTENT_BIT_LENGTH) - 1
-local INPUTS_EMOTION_MEMU = INPUTS.DOOR
-local INPUTS_ANY_SELECT = INPUTS.LEFT | INPUTS.RIGHT | INPUTS.UP | INPUTS.DOWN
-local INPUTS_PROTOCOL_1 = INPUTS.JOURNAL
 
 ---@param state StateMemory
 ---@param frame integer
 ---@param sync_storage SyncStorage
 ---@param slot integer
-function read_emotion_from_player_input(state, frame, sync_storage, slot)
-    local player_input = sync_storage.player_input[slot]
-    local frame_index = frame % EMOTION_FRAME_DURATION
+function read_gesture_from_player_input(state, frame, sync_storage, slot)
+    local i = sync_storage.[slot]
+    local input = state.player_inputs.player_slots[slot].buttons
 
-    player_input[frame_index] = state.player_inputs.player_slots[slot].buttons_gameplay
+    if input & INPUTS.UP == INPUTS.UP then
+        input = UP
+    elseif input & INPUTS.WHIP == INPUTS.WHIP then
+        input = ATTACK
+    elseif input & INPUTS.DOWN == INPUTS.DOWN then
+        input = DOWN
+    else
+        return
+    end
 
-    local data = 0
-    local i = 1
-    local j = (frame + 1) % EMOTION_FRAME_DURATION
-    while i <= EMOTION_FRAME_DURATION do
-        data = data << 1
-        if (player_input[i] & INPUTS_PROTOCOL_1) == INPUTS_PROTOCOL_1 then
-            data = data | 1
+    if sync_storage.player_last_input_frame[slot] + GESTURE_TIMEOUT_FRAMES < frame then
+        i = 0
+    end
+
+    if i ~= 0 then
+        if sync_storage.player_input[slot][i] == input then
+            sync_storage.player_input_frame_count[slot] = sync_storage.player_input_frame_count[slot] + 1
+        else
+            if sync_storage.player_input_frame_count[slot] >= GESTURE_INPUT_KEEP_FRAMES then
+                if i > GESTURE_MAX_LENGTH then
+                    i = 0
+                end
+                i = i + 1
+                sync_storage.player_input_frame_count[slot] = 1
+            end
+            sync_storage.player_input[slot][i] = input
+            sync_storage.player_input_frame_count[slot] = 1
         end
-        i = i + 1
-        j = (j % EMOTION_FRAME_DURATION) + 1
+
+        local node = get_gesture_node(
+            sync_storage.player_input[slot],
+            sync_storage.player_input_frame_count[slot]
+        )
+
+        if type(node) == "number" then
+            if sync_storage.player_current_gesture[slot] == node then
+                if sync_storage.player_current_gesture_frame_begin[slot] - frame < GESTURE_DISPLAY_FRAMES then
+                    sync_storage.player_current_gesture_frame_begin[slot] = frame
+                end
+            else
+                sync_storage.player_current_gesture[slot] = node
+                sync_storage.player_current_gesture_frame_begin[slot] = frame
+            end
+
+        end
+
+        if type(node) ~= "table" then
+            i = 0
+        end
+    else
+        i = 1
+        sync_storage.player_input[slot][i] = input
+        sync_storage.player_input_frame_count[slot] = 1
     end
 
-    ---print(toBinary(data))
-
-    if (data & HEADER_BIT) == HEADER_BIT then
-        local emotion = data & CONTENT_BIT
-        sync_storage.player_emotion[slot] = { emotion, frame }
-        print("GOT EMOTION FROM #" .. slot .. ": " .. emotion)
+    debug_str = ""
+    for j = 1, i do
+        debug_str = debug_str .. stringify_gesture_input(sync_storage.player_input[slot][j]) .. " "
     end
+    debug_str = debug_str .. sync_storage.player_input_frame_count[slot] .. ' ' .. i
+    debug_str = debug_str .. ' ' .. stringify_gesture(sync_storage.player_current_gesture[slot])
+
+    print(debug_str)
+
+    sync_storage.player_last_input_frame[slot] = frame
+    sync_storage.player_input_index[slot] = i
 end
 
--- read emotions from player input
+-- read emotion from player input
 set_callback(function()
     local sync_storage = get_sync_storage()
     local state = get_state()
     local frame = get_frame()
 
     for slot = 1, 4 do
-        read_emotion_from_player_input(state, frame, sync_storage, slot)
+        read_gesture_from_player_input(state, frame, sync_storage, slot)
     end
-end, ON.GAMEFRAME)
+end, ON.FRAME)
 
--- write emotion to player input
-set_callback(function()
-    local sync_storage = get_sync_storage()
-    local storage = get_storage()
-    local frame = get_frame()
-    local state = get_state()
-
-    if state.world == 1 and state.level == 1 then
-        storage.local_player_slot = online.lobby.local_player_slot
+function stringify_gesture_input(input)
+    if input == UP then
+        return "UP"
+    elseif input == DOWN then
+        return "DOWN"
+    elseif input == ATTACK then
+        return "ATTACK"
     end
+    return "INVALID"
+end
 
-    local local_player_slot = storage.local_player_slot
-    local input = state.player_inputs.player_slots[local_player_slot].buttons_gameplay
-    local prev_input = storage.prev_input
-    storage.prev_input = input
-
-    if frame >= sync_storage.write_frame_begin + EMOTION_COOLDOWN_DURATION then
-        local journal_enabled = true
-        if storage.emotion_input_state == EMOTION_INPUT_STATE.NONE then
-            if (input & INPUTS_ANY_SELECT) == 0 and (input & INPUTS_EMOTION_MEMU) == INPUTS_EMOTION_MEMU then
-                journal_enabled = false
-                storage.emotion_input_state = EMOTION_INPUT_STATE.PRESS_DOOR_WITHOUT_ARROW_KEY
-                print("start emotion input")
-            end
-        else
-            if (input & INPUTS_EMOTION_MEMU) == 0 then
-                storage.emotion_input_state = EMOTION_INPUT_STATE.NONE
-                print("cancel emotion input")
-            end
-            journal_enabled = false
-
-            if storage.emotion_input_state == EMOTION_INPUT_STATE.PRESS_DOOR_WITHOUT_ARROW_KEY then
-                if (input & INPUTS_ANY_SELECT) ~= 0 then
-                    storage.emotion_input_state = EMOTION_INPUT_STATE.PRESS_DOOR_WITH_SELECT_KEY
-                end
-            elseif (input & INPUTS_ANY_SELECT) == 0 and storage.emotion_input_state == EMOTION_INPUT_STATE.PRESS_DOOR_WITH_SELECT_KEY then
-                storage.emotion_input_state = EMOTION_INPUT_STATE.NONE
-                sync_storage.write_frame_begin = frame
-                if (prev_input & INPUTS.UP) == INPUTS.UP then
-                    storage.current_emotion = 0
-                elseif (prev_input & INPUTS.RIGHT) == INPUTS.RIGHT then
-                    storage.current_emotion = 1
-                elseif (prev_input & INPUTS.DOWN) == INPUTS.DOWN then
-                    storage.current_emotion = 2
-                elseif (prev_input & INPUTS.LEFT) == INPUTS.LEFT then
-                    storage.current_emotion = 3
-                else
-                    print("invalid input key")
-                
-                end
-                print("matched emotion: " .. storage.current_emotion)
-            end
+function stringify_hint(node)
+    local output = {}
+    local output_index = 1
+    function helper(cur, key)
+        if type(cur) == "number" then
+            output[output_index] = key .. "-" .. stringify_gesture(cur)
         end
 
-        set_journal_enabled(journal_enabled)
-    end
-end, ON.PRE_UPDATE)
-
-set_callback(function()
-    local sync_storage = get_sync_storage()
-    local storage = get_storage()
-    local state = get_state()
-    if state.world == 1 and state.level == 1 then
-        storage.local_player_slot = online.lobby.local_player_slot
-    end
-    local local_player_slot = storage.local_player_slot
-    local player = get_players()[local_player_slot]
-
-    player:set_pre_process_input(function(player)
-        local frame = get_frame()
-
-        if frame < sync_storage.write_frame_begin + EMOTION_COOLDOWN_DURATION then
-            set_journal_enabled(false)
-
-            local player_input_slot = state.player_inputs.player_slots[local_player_slot]
-            local input = player_input_slot.buttons_gameplay
-            input = input & ~INPUTS_PROTOCOL_1
-            player_input_slot.buttons_gameplay = input
-            
-            local emotion_write_frame = frame - sync_storage.write_frame_begin
-
-            if emotion_write_frame < 0 then
-                sync_storage.write_frame_begin = frame
-                emotion_write_frame = 0
-            end
-            
-            print("emotion_write_frame: " .. emotion_write_frame)
-            
-            if emotion_write_frame < EMOTION_FRAME_DURATION then
-                local output = 0
-
-                -- assert(HEADER_BIT == 5)
-                if emotion_write_frame < HEADER_BIT_LENGTH then
-                    output = (emotion_write_frame+1) % 2 -- (HEADER_BIT & (1 << (EMOTION_FRAME_DURATION - emotion_write_frame))) >> (EMOTION_FRAME_DURATION - emotion_write_frame)
-                elseif emotion_write_frame < EMOTION_FRAME_DURATION then
-                    output = storage.current_emotion & (1 << (EMOTION_FRAME_DURATION - emotion_write_frame))
-                end
-
-                if output == 1 then
-                    player_input_slot.buttons_gameplay = input | INPUTS_PROTOCOL_1
-                end
+        for k, v in pairs(cur) do
+            if k ~= "NO_HINT" then
+                helper(v, key .. "-" .. stringify_gesture_input(k))
             end
         end
+    end
 
-        return false
-    end)
-end, ON.LEVEL)
+    helper(node, "")
+
+    return table.concat(output, " | ")
+end
 
 set_callback(function(ctx)
-	local state = get_state()
+	local sync_storage = get_sync_storage()
+    local frame = get_frame()
 	
-	if state.screen ~= SCREEN.LEVEL or state.level < 5 or state.pause ~= 0 then
-		return
-	end
+	for i = 1, 4 do
+        local node = get_gesture_node(
+            sync_storage.player_input[i],
+            sync_storage.player_input_frame_count[i]
+        )
+        local gesture = sync_storage.player_current_gesture[i]
+        local frame_begin = sync_storage.player_current_gesture_frame_begin[i]
 
-	-- gui code here
-    --[[
-    example text
-    local width32, _ = draw_text_size(FONT_SIZE, text)
-	ctx:draw_text(x + width32/2, y, FONT_SIZE, text, rgba(243, 137, 215, 75))
-    ]]--
+        if frame - frame_begin < GESTURE_DISPLAY_FRAMES then
+            local x = -0.98 + (i - 1) * 0.3
+            local y = -1 - 5.5 * 0.1
+            local color = rgba(243, 137, 215, 75)
+
+            ctx:draw_text(x, y, 0.1, stringify_gesture(gesture), color)
+            print('gesture: ' .. stringify_gesture(gesture))
+        elseif type(node) == "table" and node.NO_HINT == nil then
+            local x = -0.98 + (i - 1) * 0.3
+            local y = -1 - 5.5 * 0.1
+            local color = rgba(243, 137, 215, 75)
+
+            ctx:draw_text(x, y, 0.1, stringify_hint(node), color)
+            print('hint: ' .. stringify_hint(node))
+        end
+    end
 end, ON.GUIFRAME)

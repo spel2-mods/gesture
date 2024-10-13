@@ -355,7 +355,7 @@ set_callback(function(ctx)
         local ges_input_state = gstate.ges_input_state
         local color = player_colors[slot]
 
-        local get_player_render_position = (function()
+        local get_player_screen_position = (function()
             local x, y, l = nil, nil, nil
             local cached = false
 
@@ -369,9 +369,11 @@ set_callback(function(ctx)
                     
                     if player == nil then
                         cached = true
-                        return nil, nil
+                        return nil, nil, nil
                     end
                     x, y, l = get_render_position(player.uid)
+                    x, y = screen_position(x, y)
+                    
                     cached = true
                 end
                 return x, y, l
@@ -386,11 +388,11 @@ set_callback(function(ctx)
             local fx, fy = 0, 0
             -- don't draw gesture select ui when player is entering the door
             if players[slot] == nil or (players[slot].state ~= CHAR_STATE.ENTERING and players[slot].state ~= CHAR_STATE.EXITING) then
-                local rx, ry = get_player_render_position()
+                local rx, ry = get_player_screen_position()
 
                 if rx ~= nil then
                     ---@cast ry number
-                    fx, fy = screen_position(rx, ry)
+                    fx, fy = rx, ry
                 end
             end
 
@@ -459,8 +461,7 @@ set_callback(function(ctx)
 
         --- displays over player's head
         if state.screen ~= SCREEN.TRANSITION then
-            local rx, ry, _ = get_player_render_position()
-            rx,ry = screen_position(rx,ry)
+            local rx, ry, _ = get_player_screen_position()
             if rx == nil then
                 goto continue
             end

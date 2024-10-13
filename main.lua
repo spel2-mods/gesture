@@ -1,3 +1,5 @@
+---@diagnostic disable: lowercase-global
+
 meta = {
 	name = "gesture",
 	version = "0.1",
@@ -6,437 +8,28 @@ meta = {
     online_safe = true
 }
 
----require "./spel2.lua"
----@diagnostic disable: lowercase-global
-
-MAX_PLAYERS = CONST.MAX_PLAYERS
-INPUT_READER_BUFFER_SIZE = 60
-
----@alias MODE integer
-MODE = {
-    COMPAT_WITH_VANILA = 1,
-    NATURAL_CONTROL = 2,
-}
-
-options_default_value = {}
-
----@generic T
----@param cb T @extends function
----@param default_value_at integer
----@return T
-function wrap(cb, default_value_at)
-    return function(...)
-        local args = {...}
-        local name = args[1]
-        local default_value = args[default_value_at]
-        options_default_value[name] = default_value
-        return cb(...)
-    end
-end
-
-s_register_option_int = wrap(register_option_int, 4)
-s_register_option_float = wrap(register_option_float, 4)
-s_register_option_bool = wrap(register_option_bool, 4)
-s_register_option_string = wrap(register_option_string, 4)
-s_register_option_combo = wrap(register_option_combo, 5)
-
----@param name string
-function s_unregister_option(name)
-    options_default_value[name] = nil
-    return unregister_option(name)
-end
-
-s_register_option_combo("mode", "Mode", "", "Compatible with Vanilla\0Natural Control(experimental, every player must use same mode)\0\0", MODE.COMPAT_WITH_VANILA)
-s_register_option_bool("play_sound", "play sound", "", true)
-s_register_option_bool("use_heart_color", "Use heart color", "", false)
-s_register_option_float("font_scale", "font scale", "", 4, 0, 10000)
-
-set_callback(function(save_ctx)
-    local save_data_str = json.encode({
-		["version"] = meta.version,
-		["options"] = options
-	})
-    save_ctx:save(save_data_str)
-end, ON.SAVE)
-
-function load_default_options()
-    for name, default_value in pairs(options_default_value) do
-        if options[name] == nil then
-            options[name] = default_value
-        end
-    end
-end
-
-set_callback(function(load_ctx)
-    local save_data_str = load_ctx:load()
-    if save_data_str ~= "" then
-        local save_data = json.decode(save_data_str)
-		if save_data.options then
-			options = save_data.options
-			load_default_options()
-		end
-    end
-end, ON.LOAD)
-
-load_default_options()
-
----@generic T
----@param n integer
----@param v T
----@return T[] @size: n
-function array(n, v)
-    local t = {}
-    for i = 1, n do
-        t[i] = v
-    end
-    return t
-end
-
----@generic T
----@param n integer
----@param cb fun(): T
----@return T[] @size: n
-function array_fillwith(n, cb)
-    local t = {}
-    for i = 1, n do
-        t[i] = cb()
-    end
-    return t
-end
-
-GESTURE = {
-    NONE = 0,
-
-    HELP = 1,
-    WAIT_PLEASE = 2,
-    READY_TO_EXIT = 3,
-    RESTART_GAME = 4,
-    NEED_RECONNECT = 5,
-    CHECK_MESSENGER = 6,
-
-    I_AM_DEAD = 7,
-    ITEM_LEFT = 8,
-    DISCARD_ITEM = 9,
-    AFK = 10,
-
-    OH_NO = 11,
-    LOL = 12,
-    CHEER_UP = 13,
-    SORRY = 14,
-
-    READY = 15,
-}
----@alias GESTURE integer
-
-DURATION_2_5S = 150
-DURATION_15S = 900
-DURATION_60S = 4 * DURATION_15S
-DURATION_30D = DURATION_60S * 24 * 30
-GESTURE_DISPLAY_DURATION_DEFAULT = DURATION_2_5S
-
-GESTURE_DISPLAY_DURATION = {
-    [GESTURE.NONE] = 0,
-
-    [GESTURE.HELP] = DURATION_60S,
-    [GESTURE.WAIT_PLEASE] = DURATION_60S,
-    [GESTURE.READY_TO_EXIT] = DURATION_60S,
-    [GESTURE.RESTART_GAME] = DURATION_60S,
-    [GESTURE.NEED_RECONNECT] = DURATION_30D,
-    [GESTURE.CHECK_MESSENGER] = DURATION_30D,
-
-    [GESTURE.I_AM_DEAD] = DURATION_15S,
-    [GESTURE.ITEM_LEFT] = DURATION_15S,
-    [GESTURE.DISCARD_ITEM] = DURATION_15S,
-    [GESTURE.AFK] = DURATION_30D,
-
-    [GESTURE.OH_NO] = DURATION_2_5S,
-    [GESTURE.LOL] = DURATION_2_5S,
-    [GESTURE.CHEER_UP] = DURATION_2_5S,
-    [GESTURE.SORRY] = DURATION_2_5S,
-
-    [GESTURE.READY] = DURATION_30D,
-}
-
-GESTURE_PERSIST_ON_TRANSITION = {
-    [GESTURE.RESTART_GAME] = true,
-    [GESTURE.AFK] = true,
-    [GESTURE.NEED_RECONNECT] = true,
-    [GESTURE.CHECK_MESSENGER] = true
-}
-
-GESTURE_PRESIST_ON_RESTART = {
-    [GESTURE.AFK] = true,
-    [GESTURE.NEED_RECONNECT] = true,
-    [GESTURE.CHECK_MESSENGER] = true
-}
-
-NO_SOUND = {}
-COMPLETED_SOUND = { get_sound(VANILLA_SOUND.MENU_CHARSEL_SELECTION) }
-WARNING_SOUND = { get_sound(VANILLA_SOUND.CUTSCENE_KEY_DROP) }
-IMPORTANT_SOUND = { get_sound(VANILLA_SOUND.MENU_CHARSEL_SELECTION2) }
-
-GESTURE_SOUND = {
-    [GESTURE.HELP] = WARNING_SOUND,
-    [GESTURE.WAIT_PLEASE] = WARNING_SOUND,
-    [GESTURE.READY_TO_EXIT] = COMPLETED_SOUND,
-    [GESTURE.RESTART_GAME] = IMPORTANT_SOUND,
-    [GESTURE.NEED_RECONNECT] = IMPORTANT_SOUND,
-    [GESTURE.CHECK_MESSENGER] = IMPORTANT_SOUND,
-
-    [GESTURE.I_AM_DEAD] = WARNING_SOUND,
-    [GESTURE.ITEM_LEFT] = WARNING_SOUND,
-    [GESTURE.DISCARD_ITEM] = COMPLETED_SOUND,
-    [GESTURE.AFK] = NO_SOUND,
-
-    [GESTURE.OH_NO] = NO_SOUND,
-    [GESTURE.LOL] = NO_SOUND,
-    [GESTURE.CHEER_UP] = NO_SOUND,
-    [GESTURE.SORRY] = NO_SOUND,
-}
-
-GESTURE_SELECT_SPACE = {
-    { GESTURE.NONE },
-    { GESTURE.NONE, GESTURE.HELP, GESTURE.WAIT_PLEASE, GESTURE.READY_TO_EXIT, GESTURE.RESTART_GAME, GESTURE.NEED_RECONNECT, GESTURE.CHECK_MESSENGER },
-    { GESTURE.NONE, GESTURE.I_AM_DEAD, GESTURE.ITEM_LEFT, GESTURE.DISCARD_ITEM, GESTURE.AFK },
-    { GESTURE.NONE, GESTURE.OH_NO, GESTURE.LOL, GESTURE.CHEER_UP, GESTURE.SORRY },
-}
-
-LANGUAGE = {
-    ENGLISH = 0,
-    KOREAN = 11
-}
-
-GESTURE_DIR_NAME = {
-    [LANGUAGE.KOREAN] = {
-        "",
-        "게임",
-        "기타",
-        "감정"
-    },
-    [LANGUAGE.ENGLISH] = {
-        "",
-        "Game",
-        "Etc",
-        "Emotion"
-    }
-}
-
-GESTURE_TEXT_MAPS = {
-    [LANGUAGE.KOREAN] = {
-        [GESTURE.NONE] = "NONE",
-
-        [GESTURE.HELP] = "도와주세요!",
-        [GESTURE.WAIT_PLEASE] = "기다려주세요!",
-        [GESTURE.READY_TO_EXIT] = "나갈 준비 완료",
-        [GESTURE.RESTART_GAME] = "다시 시작할까요?",
-        [GESTURE.NEED_RECONNECT] = "리방해야해요",
-        [GESTURE.CHECK_MESSENGER] = "글을 확인해주세요",
-
-        [GESTURE.I_AM_DEAD] = "죽었어요",
-        [GESTURE.ITEM_LEFT] = "템이 남았어요",
-        [GESTURE.DISCARD_ITEM] = "템은 버려도 괜찮아요",
-        [GESTURE.AFK] = "자리 비움",
-
-        [GESTURE.OH_NO] = "저런",
-        [GESTURE.LOL] = "신난다~",
-        [GESTURE.CHEER_UP] = "힘내요!",
-        [GESTURE.SORRY] = "미안해요",
-
-        [GESTURE.READY] = "준비",
-    },
-    [LANGUAGE.ENGLISH] = {
-        [GESTURE.NONE] = "NONE",
-
-        [GESTURE.HELP] = "Help!",
-        [GESTURE.WAIT_PLEASE] = "Wait please!",
-        [GESTURE.READY_TO_EXIT] = "Ready to exit",
-        [GESTURE.RESTART_GAME] = "Restart the game?",
-        [GESTURE.NEED_RECONNECT] = "Need reconnect",
-        [GESTURE.CHECK_MESSENGER] = "Check messenger",
-
-        [GESTURE.I_AM_DEAD] = "I'm dead",
-        [GESTURE.ITEM_LEFT] = "Item left",
-        [GESTURE.DISCARD_ITEM] = "Discard item",
-        [GESTURE.AFK] = "AFK",
-
-        [GESTURE.OH_NO] = "Oh no",
-        [GESTURE.LOL] = "Yay",
-        [GESTURE.CHEER_UP] = "Cheer up",
-        [GESTURE.SORRY] = "Sorry",
-        
-        [GESTURE.READY] = "Ready",
-    },
-}
-
-gesture_text_short_map = {
-    [LANGUAGE.KOREAN] = {
-        [GESTURE.NONE] = "",
-
-        [GESTURE.HELP] = "도움",
-        [GESTURE.WAIT_PLEASE] = "대기",
-        [GESTURE.READY_TO_EXIT] = "준비",
-        [GESTURE.RESTART_GAME] = "재시작",
-        [GESTURE.NEED_RECONNECT] = "리방",
-        [GESTURE.CHECK_MESSENGER] = "글",
-
-        [GESTURE.I_AM_DEAD] = "죽음",
-        [GESTURE.ITEM_LEFT] = "템",
-        [GESTURE.DISCARD_ITEM] = "버려요",
-        [GESTURE.AFK] = "자리 비움",
-
-        [GESTURE.OH_NO] = "저런",
-        [GESTURE.LOL] = "신난다",
-        [GESTURE.CHEER_UP] = "힘내요",
-        [GESTURE.SORRY] = "미안",
-
-        [GESTURE.READY] = "준비"
-    },
-    [LANGUAGE.ENGLISH] = {
-        [GESTURE.NONE] = "",
-
-        [GESTURE.HELP] = "Help",
-        [GESTURE.WAIT_PLEASE] = "Wait",
-        [GESTURE.READY_TO_EXIT] = "Ready",
-        [GESTURE.RESTART_GAME] = "Restart",
-        [GESTURE.NEED_RECONNECT] = "Reconnect",
-        [GESTURE.CHECK_MESSENGER] = "Confirm",
-
-        [GESTURE.I_AM_DEAD] = "Dead",
-        [GESTURE.ITEM_LEFT] = "Item",
-        [GESTURE.DISCARD_ITEM] = "Discard",
-        [GESTURE.AFK] = "AFK",
-
-        [GESTURE.OH_NO] = "Oh no",
-        [GESTURE.LOL] = "Yay",
-        [GESTURE.CHEER_UP] = "Cheer up",
-        [GESTURE.SORRY] = "Sorry",
-
-        [GESTURE.READY] = "Ready"
-    }
-}
-
----@param gesture GESTURE
----@return string
-function stringify_gesture(gesture)
-    local lang = get_setting(GAME_SETTING.LANGUAGE)
-    local text_map = GESTURE_TEXT_MAPS[lang] or GESTURE_TEXT_MAPS[LANGUAGE.ENGLISH]
-    local text = text_map[gesture] or GESTURE_TEXT_MAPS[LANGUAGE.ENGLISH][gesture]
-    
-    if text ~= nil then
-        return text
-    else
-        return "INVALID: " .. gesture
-    end
-end
-
----@param gesture GESTURE
----@return string
-function stringify_gesture_short(gesture)
-    local lang = get_setting(GAME_SETTING.LANGUAGE)
-    local text_map = gesture_text_short_map[lang] or gesture_text_short_map[LANGUAGE.ENGLISH]
-    local text = text_map[gesture] or gesture_text_short_map[LANGUAGE.ENGLISH][gesture]
-
-    if text ~= nil then
-        return text
-    else
-        return "INVALID: " .. gesture
-    end
-end
-
----@param x integer
----@return string
-function stringify_gesture_dir(x)
-    local lang = get_setting(GAME_SETTING.LANGUAGE)
-    local text_map = GESTURE_DIR_NAME[lang] or GESTURE_DIR_NAME[LANGUAGE.ENGLISH]
-    local text = text_map[x] or GESTURE_DIR_NAME[LANGUAGE.ENGLISH][x]
-
-    if text ~= nil then
-        return text
-    else
-        return "INVALID: " .. x
-    end
-end
-
----@alias GESTURE_INPUT integer
-GESTURE_INPUT = {
-    NONE = 0,
-    UP = 1,
-    DOWN = 2,
-}
-
----@class InputCandidate
----@field frame_count integer
----@field last_frame integer
-
----@return InputCandidate
-function initial_input_candidate()
-    return {
-        frame_count = 0,
-        last_frame = 0
-    }
-end
-
----@class InputReader
----@field read fun(self: InputReader, input: INPUTS, frame: integer)
----@field pressed fun(self: InputReader, gesture_input: GESTURE_INPUT, frame: integer): boolean
-
----@return InputReader
-function initial_input_reader()
-    local InputReader = {
-        cur = GESTURE_INPUT.NONE,
-        last_frame = 0,
-        candidates = array_fillwith(MAX_PLAYERS, initial_input_candidate)
-    }
-
-    ---@param gesture_input GESTURE_INPUT
-    ---@param frame integer
-    function InputReader:push(gesture_input, frame)
-        local candidate = self.candidates[gesture_input]
-        if frame - candidate.last_frame >= 3 then
-            candidate.frame_count = 0
-        end
-
-        candidate.frame_count = candidate.frame_count + 1
-        candidate.last_frame = frame
-
-        if candidate.frame_count == 3 then
-            self.cur = gesture_input
-            self.last_frame = frame
-
-            for other = 1, 3 do
-                if other ~= gesture_input then
-                    self.candidates[other].frame_count = 0
-                end
-            end
-        end
-    end
-
-    ---@param input INPUTS
-    ---@param frame integer
-    function InputReader:read(input, frame)
-        if test_mask(input, INPUTS.UP) then
-            self:push(GESTURE_INPUT.UP, frame)
-        elseif test_mask(input, INPUTS.DOWN) then
-            self:push(GESTURE_INPUT.DOWN, frame)
-        end
-    end
-
-    ---@param gesture_input GESTURE_INPUT
-    ---@param frame integer
-    ---@return boolean
-    function InputReader:pressed(gesture_input, frame)
-        return self.last_frame == frame and self.cur == gesture_input
-    end
-
-    return InputReader
-end
+require "consts"
+require "gesture.consts"
+require "gesture.stringify"
+require "util.array"
+require "playlunky.use_thread_local_version"
+playlunky_version = require("playlunky.version")
+
+online_data = require("util.online_data")
+options_utils = require("util.option")
+
+options_utils.register_option_combo("mode", "Mode", "", "Compatible with Vanilla\0Natural Control(experimental, every player must use same mode)\0\0", MODE.COMPAT_WITH_VANILA)
+options_utils.register_option_bool("play_sound", "play sound", "", true)
+options_utils.register_option_bool("use_heart_color", "Use heart color", "", false)
+options_utils.register_option_float("font_scale", "font scale", "", 4, 0, 10000)
+
+require("util.set_option_saveload")()
 
 ---@class GestureAnimation
 ---@field gesture GESTURE
 ---@field frame_begin integer
 
 ---@class GestureInputState
----@field reader InputReader
 ---@field prev_buttons integer
 ---@field door_frame_begin integer
 ---@field direction integer
@@ -446,7 +39,6 @@ end
 ---@return GestureInputState
 function initial_gesture_input_state()
     return {
-        reader = initial_input_reader(),
         prev_buttons = 0,
         door_frame_begin = -1,
         direction = 0,
@@ -473,12 +65,11 @@ end
 ---@class SyncStorage
 ---@field player_ges_states PlayerGestureState[] @size: MAX_PLAYERS
 
----@return SyncStorage
-function initial_sync_storage()
-    return {
-        player_ges_states = array_fillwith(MAX_PLAYERS, initial_player_gesture_state)
-    }
-end
+---@type SyncStorage
+local initial_sync_storage = {
+    player_ges_states = array_fillwith(MAX_PLAYERS, initial_player_gesture_state)
+}
+get_sync_storage = require("playlunky.get_sync_storage")(initial_sync_storage)
 
 ---@class Storage
 ---@field player_colors Color[] @size: MAX_PLAYERS
@@ -528,67 +119,6 @@ set_callback(function()
         end
     end
 end, ON.POST_LEVEL_GENERATION)
-
---#region base.lua
-
----@alias PLAYLUNKY_VERSION integer
-PLAYLUNKY_VERSION = {
-    STABLE = 0,
-    NIGHTLY = 1,
-    NIGHTLY_ONLINE = 2
-}
-
----@type PLAYLUNKY_VERSION
-local playlunky_version = PLAYLUNKY_VERSION.STABLE
-
----@alias PLAY_TYPE integer
-PLAY_TYPE = {
-    UNKNOWN = 0,
-    LOCAL = 1,
-    ONLINE = 2
-}
-
-local play_type = PLAY_TYPE.LOCAL
-local local_player_slot = 1
-
----@return StateMemory
-get_state = function()
-    return state
-end
-
-if get_local_state then
-    get_state = get_local_state
-    playlunky_version = PLAYLUNKY_VERSION.NIGHTLY
-end
-
-get_players = function()
-    return players
-end
-
-if get_local_players then
-    get_players = get_local_players
-end
-
-function init_user_data()
-    get_local_state().user_data = initial_sync_storage()
-end
-
-if pcall(init_user_data) then
-    playlunky_version = PLAYLUNKY_VERSION.NIGHTLY_ONLINE
-end
-
-local _sync_storage = initial_sync_storage()
-
----@return SyncStorage
-function get_sync_storage()
-    if playlunky_version == PLAYLUNKY_VERSION.NIGHTLY_ONLINE then
-        return get_local_state().user_data
-    else
-        return _sync_storage
-    end
-end
-
---#endregion
 
 ---@param frame integer
 ---@param slot integer
@@ -750,16 +280,6 @@ set_callback(function()
 end, ON.PRE_UPDATE)
 
 set_callback(function()
-    local state = get_local_state()
-    if state.screen == SCREEN.MENU then
-        play_type = PLAY_TYPE.LOCAL
-    elseif state.screen == SCREEN.ONLINE_LOBBY then
-        play_type = PLAY_TYPE.ONLINE
-        local_player_slot = online.lobby.local_player_slot
-    end
-end, ON.SCREEN)
-
-set_callback(function()
     local data = get_sync_storage()
 
     for slot = 1, MAX_PLAYERS do
@@ -814,7 +334,7 @@ set_callback(function(ctx)
         local color = player_colors[slot]
 
         ---#region GESTURE SELECT UI
-        if ges_input_state.x ~= 0 and (slot == local_player_slot or play_type == PLAY_TYPE.LOCAL) then
+        if ges_input_state.x ~= 0 and (slot == online_data.local_player_slot or online_data.play_type == PLAY_TYPE.LOCAL) then
             local BLOCK_HEIGHT = 0.05
             local BLOCK_WIDTH = 0.10
 
@@ -825,7 +345,7 @@ set_callback(function(ctx)
                 fx, fy = 0, 0
             end
 
-            if play_type == PLAY_TYPE.LOCAL then
+            if online_data.play_type == PLAY_TYPE.LOCAL then
                 local player = players[slot]
                 if player then
                     local hitbox = get_render_hitbox(player.uid)
@@ -886,7 +406,7 @@ set_callback(function(ctx)
         local text = stringify_gesture(gesture)
 
         --- displays under the player's heart
-        if play_type == PLAY_TYPE.ONLINE then
+        if online_data.play_type == PLAY_TYPE.ONLINE then
             local x = -1.15 + slot * 0.32 + 0.10
             local y = 0.648
             draw_text(text, x, y, font_scale * 1.2, fadeout_color)
@@ -923,7 +443,7 @@ end, ON.RENDER_POST_HUD)
 ---@param ctx GuiDrawContext
 set_callback(function(ctx)
 
-    if play_type == PLAY_TYPE.ONLINE and (playlunky_version ~= PLAYLUNKY_VERSION.NIGHTLY_ONLINE or options.mode ~= MODE.COMPAT_WITH_VANILA) then
+    if online_data.play_type == PLAY_TYPE.ONLINE and (playlunky_version ~= PLAYLUNKY_VERSION.NIGHTLY_ONLINE or options.mode ~= MODE.COMPAT_WITH_VANILA) then
         local state = get_state()
         if state.screen == SCREEN.ONLINE_LOBBY then
             local text = nil

@@ -368,6 +368,27 @@ set_callback(function(ctx)
         ---#endregion
         
         ---#region DISPLAY GESTURE
+        function draw_floating_text(uid,text,scale,color)
+            local x, y, _ = get_render_position(uid)
+            local w, h = draw_text_size(text,scale)
+            y = y + 0.1
+            if ex+w/2>0.98 then
+                ey=ey/ex*(0.98-w/2)
+                ex=0.98-w/2
+            elseif ex-w/2<-0.98 then
+                ey=ey/ex*(-0.98+w/2)
+                ex=-0.98+w/2
+            end
+            if ey-h/2>0.98 then
+                ex=ex/ey*(0.98+h/2)
+                ey=0.98+h/2
+            elseif ey+h/2<-0.98 then
+                ex=ex/ey*(-0.98-h/2)
+                ey=-0.98-h/2
+            end
+            draw_text(text,x,y,scale,color)
+        end
+        
         local gesture = gstate.cur_ges.gesture
         local elapsed = frame - gstate.cur_ges.frame_begin
         local duration = GESTURE_DISPLAY_DURATION[gesture] or GESTURE_DISPLAY_DURATION_DEFAULT
@@ -408,11 +429,7 @@ set_callback(function(ctx)
                 goto continue
             end
 
-            ex, ey, el = get_render_position(player.uid)
-            hitbox = get_render_hitbox(player.uid)
-            sx, sy = screen_position((hitbox.left + hitbox.right) / 2, hitbox.top + (hitbox.top - hitbox.bottom) * 0.75)
-
-            draw_text(text, sx, sy, font_scale * 1.5, fadeout_color)
+            draw_floating_text(player.uid,text,font_scale * 1.5, fadeout_color)
         end
         ::continue::
         ---#endregion

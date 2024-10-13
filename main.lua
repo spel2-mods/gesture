@@ -83,19 +83,38 @@ local function get_storage()
     return _storage
 end
 
-set_callback(function()
-    --- remove gesture state on level generation
+---@param cb fun(gesture: GESTURE): boolean
+function remove_gestures_if(cb)
     local data = get_sync_storage()
     for slot = 1, MAX_PLAYERS do
         local gstate = data.player_ges_states[slot]
         local gesture = gstate.cur_ges.gesture
-        if not GESTURE_PRESIST_ON_RESTART[gesture] then
+        if cb(gesture) then
             gstate.cur_ges = {
                 gesture = GESTURE.NONE,
                 frame_begin = -GESTURE_DISPLAY_DURATION_DEFAULT
             }
         end
     end
+end
+
+function initialize_heart_color()
+    local data = get_storage()
+    local players = get_players()
+    for slot = 1, MAX_PLAYERS do
+        local player = players[slot]
+        if player then
+            data.player_colors[slot] = Color:new(get_character_heart_color(player.type.id))
+            data.player_colors[slot].a = 1
+        end
+    end
+end
+
+set_callback(function()
+    --- remove gesture state on level generation
+    remove_gestures_if(function (gesture)
+        return not GESTURE_PRESIST_ON_RESTART[gesture]
+    end)
 
     --- initialize color of player's heart
     if not options.use_heart_color then
@@ -105,18 +124,8 @@ set_callback(function()
         return
     end
 
-    local state = get_state()
-
-    if state.level_count == 0 then
-        local data = get_storage()
-        local players = get_players()
-        for slot = 1, MAX_PLAYERS do
-            local player = players[slot]
-            if player then
-                data.player_colors[slot] = Color:new(get_character_heart_color(player.type.id))
-                data.player_colors[slot].a = 1
-            end
-        end
+    if get_state().level_count == 0 then
+        initialize_heart_color()
     end
 end, ON.POST_LEVEL_GENERATION)
 
@@ -237,45 +246,35 @@ local function process_player_input(frame, input_slot, gstate)
     ges_input_state.prev_buttons = buttons
 end
 
-set_callback(function()
-    if options.mode ~= MODE.COMPAT_WITH_VANILA then
-        return
-    end
-
+function process_players_input()
     local data = get_sync_storage()
     local state = get_state()
     local frame = get_frame()
     for slot = 1, MAX_PLAYERS do
         process_player_input(frame, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
     end
+end
+
+set_callback(function()
+    if options.mode ~= MODE.COMPAT_WITH_VANILA then
+        return
+    end
+
+    process_players_input()
 end, ON.GAMEFRAME)
 
 set_callback(function()
     if options.mode ~= MODE.NATURAL_CONTROL then
         return
     end
-    
-    local data = get_sync_storage()
-    local state = get_state()
-    local frame = get_frame()
-    for slot = 1, MAX_PLAYERS do
-        process_player_input(frame, state.player_inputs.player_slots[slot], data.player_ges_states[slot])
-    end
+
+    process_players_input()
 end, ON.PRE_UPDATE)
 
 set_callback(function()
-    local data = get_sync_storage()
-
-    for slot = 1, MAX_PLAYERS do
-        local gstate = data.player_ges_states[slot]
-        local gesture = gstate.cur_ges.gesture
-        if not GESTURE_PERSIST_ON_TRANSITION[gesture] then
-            gstate.cur_ges = {
-                gesture = GESTURE.NONE,
-                frame_begin = -GESTURE_DISPLAY_DURATION_DEFAULT
-            }
-        end
-    end
+    remove_gestures_if(function (gesture)
+        return not GESTURE_PERSIST_ON_TRANSITION[gesture]
+    end)
 end, ON.TRANSITION)
 
 FADEOUT_TIMER_AT = 30

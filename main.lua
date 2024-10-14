@@ -13,6 +13,7 @@ require "gesture.consts"
 require "gesture.stringify"
 require "util.array"
 require "playlunky.use_thread_local_version"
+require "gesture.sound"
 playlunky_version = require("playlunky.version")
 
 online_data = require("util.online_data")
@@ -23,6 +24,7 @@ options_utils.register_option_bool("play_sound", "play sound", "", true)
 options_utils.register_option_bool("use_heart_color", "Use heart color", "", false)
 options_utils.register_option_float("font_scale", "font scale", "", 4, 0, 10000)
 options_utils.register_option_combo("font_style", "font style", "", "bold\0italic\0\0", 1)
+
 function get_font_style()
     if options.font_style == 1 then
         return VANILLA_FONT_STYLE.BOLD_KO
@@ -31,7 +33,47 @@ function get_font_style()
     end
 end
 
-require("util.set_option_saveload")()
+---@param table table<string, string>
+function create_key_replacer(table)
+    ---@param key string
+    ---@return string
+    return function (key)
+        return table[key] or key
+    end
+end
+
+local gesture_key_replacer = create_key_replacer(GESTURE)
+local gesture_group_key_replacer = create_key_replacer(GESTURE_GROUP)
+
+function set_save_loader()
+    require("util.set_option_saveload")("0.1", function (save_format_version)
+        for _, lang in ipairs(SUPPORTED_LANGUAGES) do
+            options_utils.extract_table_from_options_string("GESTURE_TEXT_" .. LANGUAGE[lang] .. "_", GESTURE_TEXT_MAPS[lang], gesture_key_replacer)
+            options_utils.extract_table_from_options_string("GESTURE_TEXT_SHORT_" .. LANGUAGE[lang] .. "_", GESTURE_TEXT_SHORT_MAPS[lang], gesture_key_replacer)
+            options_utils.extract_table_from_options_string("GESTURE_GROUP_NAME_" .. LANGUAGE[lang] .. "_", GESTURE_GROUP_NAME_MAPS[lang], gesture_group_key_replacer)
+        end
+
+        options_utils.extract_table_from_options_string("GESTURE_SOUND_", GESTURE_SOUND_MAP, gesture_key_replacer)
+        options_utils.extract_table_from_options_string("GESTURE_DISPLAY_DURATION_", GESTURE_DISPLAY_DURATION, gesture_key_replacer)
+        options_utils.extract_table_from_options_string("GESTURE_PERSIST_ON_TRANSITION_", GESTURE_PERSIST_ON_TRANSITION, gesture_key_replacer)
+        options_utils.extract_table_from_options_string("GESTURE_PRESIST_ON_RESTART_", GESTURE_PRESIST_ON_RESTART, gesture_key_replacer)
+    end)
+end
+set_save_loader()
+
+function register_tables()
+    for _, lang in ipairs(SUPPORTED_LANGUAGES) do
+        options_utils.register_hidden_option_table("GESTURE_TEXT_" .. LANGUAGE[lang] .. "_", GESTURE_TEXT_MAPS_DEFAULT[lang], gesture_key_replacer)
+        options_utils.register_hidden_option_table("GESTURE_TEXT_SHORT_" .. LANGUAGE[lang] .. "_", GESTURE_TEXT_SHORT_MAPS_DEFAULT[lang], gesture_key_replacer)
+        options_utils.register_hidden_option_table("GESTURE_GROUP_NAME_" .. LANGUAGE[lang] .. "_", GESTURE_GROUP_NAME_MAPS_DEFAULT[lang], gesture_group_key_replacer)
+    end
+
+    options_utils.register_hidden_option_table("GESTURE_SOUND_", GESTURE_GROUP_NAME_MAPS_DEFAULT, gesture_key_replacer)
+    options_utils.register_hidden_option_table("GESTURE_DISPLAY_DURATION_", GESTURE_DISPLAY_DURATION_DEFAULT, gesture_key_replacer)
+    options_utils.register_hidden_option_table("GESTURE_PERSIST_ON_TRANSITION_", GESTURE_PERSIST_ON_TRANSITION_DEFAULT, gesture_key_replacer)
+    options_utils.register_hidden_option_table("GESTURE_PRESIST_ON_RESTART_", GESTURE_PRESIST_ON_RESTART_DEFAULT, gesture_key_replacer)
+end
+register_tables()
 
 ---@class GestureAnimation
 ---@field gesture GESTURE
@@ -64,7 +106,7 @@ local function initial_player_gesture_state()
     return {
         cur_ges = {
             gesture = GESTURE.NONE,
-            frame_begin = -GESTURE_DISPLAY_DURATION_DEFAULT
+            frame_begin = -DURATION_30D
         },
         ges_input_state = initial_gesture_input_state()
     }
@@ -100,7 +142,7 @@ function remove_gestures_if(cb)
         if cb(gesture) then
             gstate.cur_ges = {
                 gesture = GESTURE.NONE,
-                frame_begin = -GESTURE_DISPLAY_DURATION_DEFAULT
+                frame_begin = -DURATION_30D
             }
         end
     end
@@ -240,14 +282,7 @@ local function process_player_input(frame, input_slot, gstate)
             ges_input_state.x = 0
             ges_input_state.y = 0
 
-            if options.play_sound then
-                local sounds = GESTURE_SOUND[gesture]
-                    if sounds ~= nil then
-                    for _, sound in ipairs(sounds) do
-                        sound:play()
-                    end
-                end
-            end
+            play_gesture_sound(gesture)
         end
     end
 
@@ -322,11 +357,10 @@ set_callback(function(ctx)
     end
 
     ---@param text string
-    ---@param x number
-    ---@param y number
+    ---@param ex number
+    ---@param ey number
     ---@param scale number
     ---@param color Color
-
     function draw_floating_text(text, ex, ey, scale, color)
         local w, h = draw_text_size(text,scale)
         
@@ -404,13 +438,13 @@ set_callback(function(ctx)
                 local x = fx
                 local y = fy + 0.12 + (gx - 1) * BLOCK_HEIGHT
                 local text = stringify_gesture_dir(gx)
-                local dir_color = color_disabled
+                local gesture_group_color = color_disabled
 
                 if gx == ges_input_state.x and ges_input_state.y == 1 then
-                    dir_color = color_enabled
+                    gesture_group_color = color_enabled
                 end
 
-                draw_text(text, x, y, font_scale, dir_color)
+                draw_text(text, x, y, font_scale, gesture_group_color)
             end
 
             --- draw select
@@ -434,7 +468,7 @@ set_callback(function(ctx)
         
         local gesture = gstate.cur_ges.gesture
         local elapsed = frame - gstate.cur_ges.frame_begin
-        local duration = GESTURE_DISPLAY_DURATION[gesture] or GESTURE_DISPLAY_DURATION_DEFAULT
+        local duration = GESTURE_DISPLAY_DURATION[gesture] or DURATION_30D
         if gesture == GESTURE.NONE or elapsed >= duration then
             goto continue
         end

@@ -32,8 +32,8 @@ end
 ---@return string
 function stringify_gesture_dir(x)
     local lang = get_setting(GAME_SETTING.LANGUAGE)
-    local text_map = GESTURE_DIR_NAME[lang] or GESTURE_DIR_NAME[LANGUAGE.ENGLISH]
-    local text = text_map[x] or GESTURE_DIR_NAME[LANGUAGE.ENGLISH][x]
+    local text_map = GESTURE_GROUP_NAME_MAPS[lang] or GESTURE_GROUP_NAME_MAPS[LANGUAGE.ENGLISH]
+    local text = text_map[x] or GESTURE_GROUP_NAME_MAPS[LANGUAGE.ENGLISH][x]
 
     if text ~= nil then
         return text

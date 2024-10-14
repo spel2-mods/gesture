@@ -20,7 +20,7 @@ online = nil
 players = nil
 ---@type SaveData
 savegame = nil
----@type any
+---@type table<string, string|boolean|number|nil>
 options = nil
 ---@type PRNG
 prng = nil
@@ -36,7 +36,7 @@ exports = nil
 ---Check https://github.com/rxi/json.lua for more information
 ---@class Json
 ---@field decode fun(str: string): table @Decode a json string into a table
----@field encode fun(tbl: table): string @Encode a table into a json string
+---@field encode fun(value: nil | table | string | number | boolean): string @Encode a table into a json string
 ---@type Json
 json = nil
 

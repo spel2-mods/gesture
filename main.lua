@@ -531,3 +531,12 @@ set_callback(function(ctx)
         end
     end
 end, ON.GUIFRAME)
+
+set_callback(function()
+    local state = get_local_state()
+    if state.screen == SCREEN.MENU or state.screen == SCREEN.ONLINE_LOBBY or state.screen == SCREEN.CAMP then
+        remove_gestures_if(function (_)
+            return true
+        end)
+    end
+end, ON.SCREEN)

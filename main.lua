@@ -343,6 +343,19 @@ set_callback(function(ctx)
     local frame = get_frame()
     local players = get_players()
 
+
+    ---@param slot integer
+    ---@return Player | nil
+    local function get_player(slot)
+        for _, player in ipairs(players) do
+            if player and player.inventory.player_slot == slot then
+                return player
+            end
+        end
+
+        return nil
+    end
+
     ---@param text string
     ---@param x number
     ---@param y number
@@ -396,7 +409,7 @@ set_callback(function(ctx)
             return function()
                 if not cached then
                     ---@type Player | PlayerGhost | nil
-                    local player = players[slot]
+                    local player = get_player(slot)
                     if player == nil or player.health == 0 then
                         player = get_playerghost(slot)
                     end
@@ -421,7 +434,8 @@ set_callback(function(ctx)
 
             local fx, fy = 0, 0
             -- don't draw gesture select ui when player is entering the door
-            if players[slot] == nil or (players[slot].state ~= CHAR_STATE.ENTERING and players[slot].state ~= CHAR_STATE.EXITING) then
+            local player = get_player(slot)
+            if player == nil or (player.state ~= CHAR_STATE.ENTERING and player.state ~= CHAR_STATE.EXITING) then
                 local rx, ry = get_player_screen_position()
 
                 if rx ~= nil then

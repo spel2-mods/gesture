@@ -553,4 +553,21 @@ set_callback(function()
             return true
         end)
     end
+
+    -- remove all gestures in 2.5s
+    if state.screen == SCREEN.WIN or state.screen == SCREEN.CONSTELLATION then
+        local data = get_sync_storage()
+        local frame = get_frame()
+        for slot = 1, MAX_PLAYERS do
+            local gstate = data.player_ges_states[slot]
+            local gesture = gstate.cur_ges.gesture
+            if gesture ~= GESTURE.NONE then
+                local elapsed = frame - gstate.cur_ges.frame_begin
+                local duration = GESTURE_DISPLAY_DURATION[gesture] or DURATION_30D
+                if elapsed < duration then
+                    gstate.cur_ges.frame_begin = frame + DURATION_2_5S - duration
+                end
+            end
+        end
+    end
 end, ON.SCREEN)

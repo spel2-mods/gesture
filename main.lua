@@ -21,7 +21,7 @@ options_utils = require("util.option")
 
 options_utils.register_option_combo("mode", "Mode", "", "Compatible with Vanilla\0Natural Control(experimental, every player must use same mode)\0\0", MODE.COMPAT_WITH_VANILA)
 options_utils.register_option_bool("play_sound", "play sound", "", true)
-options_utils.register_option_bool("use_heart_color", "Use heart color", "", false)
+options_utils.register_option_bool("use_heart_color", "Use heart color", "", true)
 options_utils.register_option_float("font_scale", "font scale", "", 4, 0, 10000)
 options_utils.register_option_combo("font_style", "font style", "", "bold\0italic\0\0", 1)
 

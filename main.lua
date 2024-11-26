@@ -2,8 +2,8 @@
 
 meta = {
 	name = "gesture",
-	version = "0.1",
-	description = "visualize gesture into chat",
+    version = "0.2",
+    description = "displays specific gestures as text, like a chat",
 	author = "fienestar",
     online_safe = true
 }
